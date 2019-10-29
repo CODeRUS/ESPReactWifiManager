@@ -160,10 +160,7 @@ void notFoundHandler(AsyncWebServerRequest* request)
         Serial.print(F("Request redirected to captive portal: "));
         Serial.println(request->url());
 
-        AsyncWebServerResponse* response = request->beginResponse(302, F("text/plain"));
-        response->addHeader(F("Location"),
-            String(F("http://")) + request->client()->localIP().toString());
-        request->send(response);
+        request->redirect(String(F("http://")) + request->client()->localIP().toString());
     }
 }
 
