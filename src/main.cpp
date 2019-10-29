@@ -174,7 +174,6 @@ bool connect(String ssid, String password, String login)
 
     if (ssid.length() == 0) {
         sta_config_t sta_conf;
-        String savedPassword;
 #if defined(ESP32)
         wifi_config_t current_conf;
         esp_wifi_get_config(WIFI_IF_STA, &current_conf);
@@ -187,15 +186,15 @@ bool connect(String ssid, String password, String login)
         saved_ssid[32] = 0;
         ssid = String(saved_ssid);
 
-        char saved_password[65];
-        memcpy(saved_password, sta_conf.password, sizeof(sta_conf.password));
-        saved_password[64] = 0;
-
         if (ssid.length() == 0) {
             return false;
         }
 
-        savedPassword = String(saved_password);
+        char saved_password[65];
+        memcpy(saved_password, sta_conf.password, sizeof(sta_conf.password));
+        saved_password[64] = 0;
+
+        String savedPassword = String(saved_password);
 
         if (savedPassword.startsWith(F("x:"))) {
             int passwordIndex = savedPassword.indexOf(F(":"), 2);
