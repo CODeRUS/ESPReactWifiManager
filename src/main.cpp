@@ -454,7 +454,7 @@ void loop()
             Serial.print(".");
             break;
         case WL_IDLE_STATUS:
-            Serial.println(F("Connection idle!"));
+            // Serial.println(F("Connection idle!"));
             break;
         case WL_CONNECTION_LOST:
             Serial.println(F("Connection lost! Retrying."));
