@@ -247,7 +247,12 @@ void startServer(bool apMode = false)
         dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
         bool dnsOk = dnsServer->start(53, F("*"), WiFi.softAPIP());
         Serial.printf_P(PSTR("Starting DNS server: %s\n"), dnsOk ? PSTR("success") : PSTR("fail"));
-    }
+    } else if (dnsServer && !apMode) {
+        Serial.println(F("Stopping DMS server"));
+        dnsServer->stop();
+        delete dnsServer;
+        dnsServer = nullptr;
+    } 
 
     if (server) {
         return;
