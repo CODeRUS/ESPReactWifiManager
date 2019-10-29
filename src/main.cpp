@@ -332,10 +332,6 @@ void startServer(bool apMode = false)
                 } else if (wifiIndex >= wifiResults.size()) {
                     return 0;
                 } else {
-                    DynamicJsonDocument doc(1024);
-                    JsonObject obj = doc.to<JsonObject>();
-                    obj[F("ssid")] = wifiResults[wifiIndex].ssid;
-                    obj[F("signalStrength")] = wifiResults[wifiIndex].quality;
                     String security;
                     if (wifiResults[wifiIndex].encryptionType == ENCRYPTION_NONE) {
                         security = F("none");
@@ -344,15 +340,21 @@ void startServer(bool apMode = false)
                     } else {
                         security = F("WEP");
                     }
+                    const size_t capacity = JSON_OBJECT_SIZE(3) + 31 // fields length
+                                            + security.length()
+                                            + wifiResults[wifiIndex].ssid.length();
+                    DynamicJsonDocument doc(capacity);
+                    JsonObject obj = doc.to<JsonObject>();
+                    obj[F("ssid")] = wifiResults[wifiIndex].ssid;
+                    obj[F("signalStrength")] = wifiResults[wifiIndex].quality;
                     obj[F("security")] = security;
                     size_t len = serializeJson(doc, (char*)buffer, maxLen);
                     if ((wifiIndex + 1) == wifiResults.size()) {
                         buffer[len] = ']';
-                        ++len;
                     } else {
                         buffer[len] = ',';
-                        ++len;
                     }
+                    ++len;
                     ++wifiIndex;
                     return len;
                 }
