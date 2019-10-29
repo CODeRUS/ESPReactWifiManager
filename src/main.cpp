@@ -226,15 +226,6 @@ bool connect(String ssid, String password, String login)
         esp_wpa2_config_t config = WPA2_CONFIG_INIT_DEFAULT();
         esp_wifi_sta_wpa2_ent_enable(&config);
 #else
-        struct station_config wifi_config;
-        wifi_station_get_config_default(&wifi_config);
-        strcpy((char*)wifi_config.ssid, ssid.c_str());
-        strcpy((char*)wifi_config.password, password.c_str());
-        wifi_station_set_config_current(&wifi_config);
-
-        wifi_station_clear_cert_key();
-        wifi_station_clear_enterprise_ca_cert();
-        wifi_station_clear_enterprise_cert_key();
         wifi_station_set_wpa2_enterprise_auth(1);
 #endif
         esp_wifi_sta_wpa2_ent_set_identity((wifi_cred_t*)login.c_str(), login.length());
