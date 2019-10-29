@@ -77,16 +77,6 @@ void disconnect()
 #endif
 }
 
-String toStringIp(IPAddress ip)
-{
-    String res = "";
-    for (int i = 0; i < 3; i++) {
-        res += String((ip >> (8 * i)) & 0xFF) + ".";
-    }
-    res += String(((ip >> 8 * 3)) & 0xFF);
-    return res;
-}
-
 bool signalLess(const WifiResult& a, const WifiResult& b)
 {
     return a.rssi > b.rssi;
@@ -172,7 +162,7 @@ void notFoundHandler(AsyncWebServerRequest* request)
 
         AsyncWebServerResponse* response = request->beginResponse(302, F("text/plain"));
         response->addHeader(F("Location"),
-            String(F("http://")) + toStringIp(request->client()->localIP()));
+            String(F("http://")) + request->client()->localIP().toString());
         request->send(response);
     }
 }
