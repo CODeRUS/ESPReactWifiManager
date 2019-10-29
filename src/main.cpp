@@ -59,6 +59,8 @@ bool isConnecting = false;
 uint32_t connectingTimer = 0;
 uint32_t connectedCheckTimeout = 1000;
 
+uint32_t shouldScan = 0;
+
 std::vector<WifiResult> wifiResults;
 int wifiIndex = 0;
 
@@ -343,7 +345,7 @@ void startServer(bool apMode = false)
     server->onNotFound(notFoundHandler);
     server->begin();
 
-    scan();
+    shouldScan = millis() + 2000;
 }
 
 bool ap(String apName)
@@ -406,8 +408,16 @@ void loop()
         dnsServer->processNextRequest();
     }
 
-    if (isConnecting && (millis() - connectingTimer) > connectedCheckTimeout) {
-        connectingTimer = millis();
+    uint32_t now = millis();
+
+    if (shouldScan > 0 && now > shouldScan) {
+        shouldScan = 0;
+
+        scan();
+    }
+
+    if (isConnecting && (now - connectingTimer) > connectedCheckTimeout) {
+        connectingTimer = now;
         wl_status_t status = WiFi.status();
         switch (status) {
         case WL_CONNECTED:
