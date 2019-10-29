@@ -405,7 +405,7 @@ bool ap(String apName)
 
 bool autoConnect()
 {
-    return connect("", "", "") || ap(F("REACT"));
+    return connect(String(), String(), String()) || ap(F("REACT"));
 }
 
 } // namespace
