@@ -245,9 +245,9 @@ bool ESPReactWifiManager::connect(String ssid, String password, String login)
     return true;
 }
 
-bool ESPReactWifiManager::autoConnect()
+bool ESPReactWifiManager::autoConnect(String apName)
 {
-    return connect(String(), String(), String()) || startAP(F("REACT"));
+    return connect(String(), String(), String()) || startAP(apName);
 }
 
 bool ESPReactWifiManager::startAP(String apName)

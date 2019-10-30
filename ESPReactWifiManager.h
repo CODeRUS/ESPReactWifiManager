@@ -24,7 +24,7 @@ public:
 
     void disconnect();
     bool connect(String ssid, String password, String login);
-    bool autoConnect();
+    bool autoConnect(String apName);
     bool startAP(String apName);
 
     void setupHandlers(AsyncWebServer *server);
