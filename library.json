@@ -1,0 +1,13 @@
+{
+  "name": "ESPReactWifiManager",
+  "keywords": "wifi, wi-fi",
+  "description": "ESP8266/ESP32 Async WiFi Connection manager with web configuration portal frpm SPIFFS",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/coderus/ESPReactWifiManager.git"
+  },
+  "frameworks": "arduino",
+  "platforms": ["espressif8266", "espressif32"],
+  "version": "0.1"
+}
