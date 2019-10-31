@@ -72,7 +72,7 @@ bool ssidEqual(const ESPReactWifiManager::WifiResult& a,
 bool ssidLess(const ESPReactWifiManager::WifiResult& a,
               const ESPReactWifiManager::WifiResult& b)
 {
-    return a.ssid == b.ssid ? a.rssi > b.rssi : a.ssid < b.ssid;
+    return a.ssid == b.ssid ? signalLess(a, b) : a.ssid < b.ssid;
 }
 
 void notFoundHandler(AsyncWebServerRequest* request)
