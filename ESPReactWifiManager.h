@@ -29,8 +29,8 @@ public:
     void setFallbackToAp(bool enable);
 
     void setupHandlers(AsyncWebServer *server);
-    void setFinishedCallback(void (*func)(bool)); // arg bool "is AP mode"
-    void setNotFoundCallback(void (*func)(AsyncWebServerRequest*));
+    void onFinished(void (*func)(bool)); // arg bool "is AP mode"
+    void onNotFound(void (*func)(AsyncWebServerRequest*));
 
     void finishConnection(bool apMode);
     void scheduleScan(int timeout = 2000);

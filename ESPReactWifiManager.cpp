@@ -377,12 +377,12 @@ void ESPReactWifiManager::setupHandlers(AsyncWebServer *server)
     server->onNotFound(notFoundHandler);
 }
 
-void ESPReactWifiManager::setFinishedCallback(void (*func)(bool))
+void ESPReactWifiManager::onFinished(void (*func)(bool))
 {
     finishedCallback = func;
 }
 
-void ESPReactWifiManager::setNotFoundCallback(void (*func)(AsyncWebServerRequest*))
+void ESPReactWifiManager::onNotFound(void (*func)(AsyncWebServerRequest*))
 {
     notFoundCallback = func;
 }
