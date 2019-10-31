@@ -191,20 +191,13 @@ bool ESPReactWifiManager::connect(String ssid, String password, String login)
 #else
         wifi_station_get_config_default(&sta_conf);
 #endif
-        char saved_ssid[33];
-        memcpy(saved_ssid, sta_conf.ssid, sizeof(sta_conf.ssid));
-        saved_ssid[32] = 0;
-        ssid = String(saved_ssid);
+        ssid = String(reinterpret_cast<const char*>(sta_conf.ssid));
 
         if (ssid.length() == 0) {
             return false;
         }
 
-        char saved_password[65];
-        memcpy(saved_password, sta_conf.password, sizeof(sta_conf.password));
-        saved_password[64] = 0;
-
-        String savedPassword = String(saved_password);
+        String savedPassword = String(reinterpret_cast<const char*>(sta_conf.password));
 
         if (savedPassword.startsWith(F("x:"))) {
             int passwordIndex = savedPassword.indexOf(F(":"), 2);
