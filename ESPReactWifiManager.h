@@ -26,6 +26,7 @@ public:
     bool connect(String ssid, String password, String login);
     bool autoConnect(String apName);
     bool startAP(String apName);
+    void setFallbackToAp(bool enable);
 
     void setupHandlers(AsyncWebServer *server);
     void setFinishedCallback(void (*func)(bool)); // arg bool "is AP mode"

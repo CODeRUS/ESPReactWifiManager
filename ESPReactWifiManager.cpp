@@ -43,6 +43,7 @@ typedef wifi_sta_config_t sta_config_t;
 namespace {
 
 bool isConnecting = false;
+bool fallbackToAp = true;
 
 uint32_t connectingTimer = 0;
 uint32_t connectedCheckTimeout = 1000;
@@ -131,11 +132,13 @@ void ESPReactWifiManager::loop()
             break;
         case WL_CONNECT_FAILED:
         case WL_NO_SSID_AVAIL:
+            if (fallbackToAp) {
 #if defined(ESP32)
-            WiFi.disconnect(false, true);
+                WiFi.disconnect(false, true);
 #else
-            WiFi.disconnect();
+                WiFi.disconnect();
 #endif
+            }
             isConnecting = false;
             Serial.println(F("Connection failed!"));
             ESP.restart();
@@ -248,6 +251,11 @@ bool ESPReactWifiManager::connect(String ssid, String password, String login)
 bool ESPReactWifiManager::autoConnect(String apName)
 {
     return connect(String(), String(), String()) || startAP(apName);
+}
+
+void ESPReactWifiManager::setFallbackToAp(bool enable)
+{
+    fallbackToAp = enable;
 }
 
 bool ESPReactWifiManager::startAP(String apName)
