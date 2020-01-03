@@ -33,17 +33,17 @@ void setup()
         .setCacheControl(PSTR("max-age=86400"));
     server->serveStatic(PSTR("/"), SPIFFS, PSTR("/"))
         .setCacheControl(PSTR("max-age=86400"))
-        .setDefaultFile(PSTR("index.html"));
+        .setDefaultFile(PSTR("wifi.html"));
 
     wifiManager = new ESPReactWifiManager();
-    wifiManager->setFinishedCallback([](bool isAPMode) {
+    wifiManager->onFinished([](bool isAPMode) {
         server->begin();
     });
-    wifiManager->setNotFoundCallback([](AsyncWebServerRequest* request) {
-        request->send(SPIFFS, F("index.html"));
+    wifiManager->onNotFound([](AsyncWebServerRequest* request) {
+        request->send(SPIFFS, F("wifi.html"));
     });
     wifiManager->setupHandlers(server);
-    wifiManager->autoConnect();
+    wifiManager->autoConnect(F("REACT"));
 }
 
 void loop()
