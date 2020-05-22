@@ -7,7 +7,7 @@ class AsyncWebServerRequest;
 class ESPReactWifiManager
 {
 public:
-    ESPReactWifiManager();
+    ESPReactWifiManager(const String &hostname = String());
 
     struct WifiResult {
         String ssid;

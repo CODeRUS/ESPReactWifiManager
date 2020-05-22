@@ -54,6 +54,8 @@ DNSServer* dnsServer = nullptr;
 void (*finishedCallback)(bool) = nullptr;
 void (*notFoundCallback)(AsyncWebServerRequest*) = nullptr;
 
+String wifiHostname;
+
 std::vector<ESPReactWifiManager::WifiResult> wifiResults;
 int wifiIndex = 0;
 
@@ -101,9 +103,9 @@ void notFoundHandler(AsyncWebServerRequest* request)
 
 }
 
-ESPReactWifiManager::ESPReactWifiManager()
+ESPReactWifiManager::ESPReactWifiManager(const String &hostname)
 {
-
+    wifiHostname = hostname;
 }
 
 void ESPReactWifiManager::loop()
@@ -181,6 +183,13 @@ bool ESPReactWifiManager::connect(String ssid, String password, String login)
 
     isConnecting = true;
     WiFi.mode(WIFI_STA);
+    if (!wifiHostname.isEmpty()) {
+#if defined(ESP8266)
+        WiFi.hostname(wifiHostname.c_str());
+#else
+        WiFi.setHostname(wifiHostname.c_str());
+#endif
+    }
 
     if (ssid.length() == 0) {
         sta_config_t sta_conf;
