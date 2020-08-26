@@ -31,6 +31,7 @@ typedef wifi_sta_config_t sta_config_t;
 #define ENCRYPTION_ENT WIFI_AUTH_WPA2_ENTERPRISE
 #endif
 
+#include <Ticker.h>
 #include <DNSServer.h>
 #include <ESPAsyncWebServer.h>
 #include <algorithm>
@@ -41,6 +42,8 @@ typedef wifi_sta_config_t sta_config_t;
 #include <AsyncJson.h>
 
 namespace {
+
+ESPReactWifiManager *instance = nullptr;
 
 bool isConnecting = false;
 bool fallbackToAp = true;
@@ -58,6 +61,15 @@ String wifiHostname;
 
 std::vector<ESPReactWifiManager::WifiResult> wifiResults;
 int wifiIndex = 0;
+
+Ticker wifiReconnectTimer;
+
+#if defined(ESP8266)
+WiFiEventHandler wifiConnectHandler;
+WiFiEventHandler wifiDisconnectHandler;
+#endif
+
+const float wifiReconnectDelay = 5;
 
 bool signalLess(const ESPReactWifiManager::WifiResult& a,
                 const ESPReactWifiManager::WifiResult& b)
@@ -101,11 +113,131 @@ void notFoundHandler(AsyncWebServerRequest* request)
     }
 }
 
+void connectToWifi()
+{
+    if (!instance) {
+        return;
+    }
+
+    instance->connect(String(), String(), String());
+}
+
+#if defined(ESP32)
+void WiFiEvent(WiFiEvent_t event) {
+    Serial.print("[WiFi-event] event: ");
+    switch(event) {
+
+    case SYSTEM_EVENT_WIFI_READY:
+        Serial.println("SYSTEM_EVENT_WIFI_READY");
+        break;
+    case SYSTEM_EVENT_SCAN_DONE:
+        Serial.println("SYSTEM_EVENT_SCAN_DONE");
+        break;
+    case SYSTEM_EVENT_STA_START:
+        Serial.println("SYSTEM_EVENT_STA_START");
+        break;
+    case SYSTEM_EVENT_STA_STOP:
+        Serial.println("SYSTEM_EVENT_STA_STOP");
+        break;
+    case SYSTEM_EVENT_STA_CONNECTED:
+        Serial.println("SYSTEM_EVENT_STA_CONNECTED");
+        break;
+    case SYSTEM_EVENT_STA_DISCONNECTED:
+        Serial.println("SYSTEM_EVENT_STA_DISCONNECTED");
+        wifiReconnectTimer.once(wifiReconnectDelay, connectToWifi);
+        break;
+    case SYSTEM_EVENT_STA_AUTHMODE_CHANGE:
+        Serial.println("SYSTEM_EVENT_STA_AUTHMODE_CHANGE");
+        break;
+    case SYSTEM_EVENT_STA_GOT_IP:
+        Serial.println("SYSTEM_EVENT_STA_GOT_IP");
+        instance->finishConnection(false);
+        break;
+    case SYSTEM_EVENT_STA_LOST_IP:
+        Serial.println("SYSTEM_EVENT_STA_LOST_IP");
+        break;
+    case SYSTEM_EVENT_STA_WPS_ER_SUCCESS:
+        Serial.println("SYSTEM_EVENT_STA_WPS_ER_SUCCESS");
+        break;
+    case SYSTEM_EVENT_STA_WPS_ER_FAILED:
+        Serial.println("SYSTEM_EVENT_STA_WPS_ER_FAILED");
+        break;
+    case SYSTEM_EVENT_STA_WPS_ER_TIMEOUT:
+        Serial.println("SYSTEM_EVENT_STA_WPS_ER_TIMEOUT");
+        break;
+    case SYSTEM_EVENT_STA_WPS_ER_PIN:
+        Serial.println("SYSTEM_EVENT_STA_WPS_ER_PIN");
+        break;
+    case SYSTEM_EVENT_STA_WPS_ER_PBC_OVERLAP:
+        Serial.println("SYSTEM_EVENT_STA_WPS_ER_PBC_OVERLAP");
+        break;
+    case SYSTEM_EVENT_AP_START:
+        Serial.println("SYSTEM_EVENT_AP_START");
+        instance->finishConnection(true);
+        break;
+    case SYSTEM_EVENT_AP_STOP:
+        Serial.println("SYSTEM_EVENT_AP_STOP");
+        break;
+    case SYSTEM_EVENT_AP_STACONNECTED:
+        Serial.println("SYSTEM_EVENT_AP_STACONNECTED");
+        break;
+    case SYSTEM_EVENT_AP_STADISCONNECTED:
+        Serial.println("SYSTEM_EVENT_AP_STADISCONNECTED");
+        break;
+    case SYSTEM_EVENT_AP_STAIPASSIGNED:
+        Serial.println("SYSTEM_EVENT_AP_STAIPASSIGNED");
+        break;
+    case SYSTEM_EVENT_AP_PROBEREQRECVED:
+        Serial.println("SYSTEM_EVENT_AP_PROBEREQRECVED");
+        break;
+    case SYSTEM_EVENT_GOT_IP6:
+        Serial.println("SYSTEM_EVENT_GOT_IP6");
+        break;
+    case SYSTEM_EVENT_ETH_START:
+        Serial.println("SYSTEM_EVENT_ETH_START");
+        break;
+    case SYSTEM_EVENT_ETH_STOP:
+        Serial.println("SYSTEM_EVENT_ETH_STOP");
+        break;
+    case SYSTEM_EVENT_ETH_CONNECTED:
+        Serial.println("SYSTEM_EVENT_ETH_CONNECTED");
+        break;
+    case SYSTEM_EVENT_ETH_DISCONNECTED:
+        Serial.println("SYSTEM_EVENT_ETH_DISCONNECTED");
+        break;
+    case SYSTEM_EVENT_ETH_GOT_IP:
+        Serial.println("SYSTEM_EVENT_ETH_GOT_IP");
+        break;
+    case SYSTEM_EVENT_MAX:
+        Serial.println("SYSTEM_EVENT_MAX");
+        break;
+    }
+}
+#else
+void onWifiConnect(const WiFiEventStationModeGotIP& event) {
+    Serial.println("Connected to Wi-Fi.");
+    instance->finishConnection(false);
+}
+
+void onWifiDisconnect(const WiFiEventStationModeDisconnected& event) {
+    Serial.println("Disconnected from Wi-Fi.");
+    wifiReconnectTimer.once(wifiReconnectDelay, connectToWifi);
+}
+#endif
 }
 
 ESPReactWifiManager::ESPReactWifiManager(const String &hostname)
 {
+    instance = this;
+
     wifiHostname = hostname;
+
+#if defined(ESP8266)
+    wifiConnectHandler = WiFi.onStationModeGotIP(onWifiConnect);
+    wifiDisconnectHandler = WiFi.onStationModeDisconnected(onWifiDisconnect);
+#else
+    WiFi.onEvent(WiFiEvent);
+#endif
 }
 
 void ESPReactWifiManager::loop()
@@ -120,47 +252,6 @@ void ESPReactWifiManager::loop()
         shouldScan = 0;
 
         scan();
-    }
-
-    if (isConnecting && (now - connectingTimer) > connectedCheckTimeout) {
-        connectingTimer = now;
-        wl_status_t status = WiFi.status();
-        switch (status) {
-        case WL_CONNECTED:
-            isConnecting = false;
-            Serial.print(F("\nLocal ip: "));
-            Serial.println(WiFi.localIP());
-            finishConnection(false);
-            break;
-        case WL_CONNECT_FAILED:
-        case WL_NO_SSID_AVAIL:
-            if (fallbackToAp) {
-#if defined(ESP32)
-                WiFi.disconnect(false, true);
-#else
-                WiFi.disconnect();
-#endif
-            }
-            isConnecting = false;
-            Serial.println(F("Connection failed!"));
-            ESP.restart();
-            break;
-        case WL_DISCONNECTED:
-            Serial.print(".");
-            break;
-        case WL_IDLE_STATUS:
-            // Serial.println(F("Connection idle!"));
-            break;
-        case WL_CONNECTION_LOST:
-            Serial.println(F("Connection lost! Retrying."));
-            break;
-        case WL_NO_SHIELD:
-            break;
-        default:
-            Serial.print(F("Unhandled status during connect: "));
-            Serial.println(status);
-            break;
-        }
     }
 }
 
@@ -285,12 +376,6 @@ bool ESPReactWifiManager::startAP(String apName)
         return false;
     }
 
-    delay(500); // Without delay I've seen the IP address blank
-    Serial.println(F("AP IP address: "));
-    Serial.println(WiFi.softAPIP());
-
-    finishConnection(true);
-
     return true;
 }
 
@@ -391,6 +476,16 @@ void ESPReactWifiManager::onNotFound(void (*func)(AsyncWebServerRequest*))
 
 void ESPReactWifiManager::finishConnection(bool apMode)
 {
+    if (apMode) {
+        Serial.println("AP started");
+        Serial.print(F("AP IP address: "));
+        Serial.println(WiFi.softAPIP());
+    } else {
+        Serial.println("Connected to Wi-Fi.");
+        Serial.print(F("STA IP address: "));
+        Serial.println(WiFi.localIP());
+    }
+
     if (!dnsServer && apMode) {
         dnsServer = new DNSServer();
         dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
@@ -401,7 +496,7 @@ void ESPReactWifiManager::finishConnection(bool apMode)
         dnsServer->stop();
         delete dnsServer;
         dnsServer = nullptr;
-    } 
+    }
 
     scheduleScan();
 
