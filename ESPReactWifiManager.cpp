@@ -97,7 +97,7 @@ void notFoundHandler(AsyncWebServerRequest* request)
     }
 
     bool isLocal = WiFi.localIP() == request->client()->localIP();
-    
+
     if (!isLocal) {
         Serial.print(F("Request redirected to captive portal: "));
         Serial.println(request->url());
@@ -122,6 +122,33 @@ void connectToWifi()
     instance->connect(String(), String(), String());
 }
 
+void setupSTA() {
+    bool success = WiFi.softAPConfig(
+        IPAddress(8, 8, 8, 8),
+        IPAddress(8, 8, 8, 8),
+        IPAddress(255, 255, 255, 0));
+    if (!success) {
+        Serial.println(F("Error setting static IP for AP mode"));
+        ESP.restart();
+        return;
+    }
+}
+
+bool checkApAvailable() {
+    if (WiFi.status() == WL_NO_SSID_AVAIL && fallbackToAp) {
+#if defined(ESP32)
+        WiFi.disconnect(false, true);
+#else
+        WiFi.disconnect();
+#endif
+        Serial.println(F("SSID not available, resetting!"));
+        ESP.restart();
+        return false;
+    }
+
+    return true;
+}
+
 #if defined(ESP32)
 void WiFiEvent(WiFiEvent_t event) {
     Serial.print("[WiFi-event] event: ");
@@ -144,7 +171,9 @@ void WiFiEvent(WiFiEvent_t event) {
         break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
         Serial.println("SYSTEM_EVENT_STA_DISCONNECTED");
-        wifiReconnectTimer.once(wifiReconnectDelay, connectToWifi);
+        if (checkApAvailable()) {
+            wifiReconnectTimer.once(wifiReconnectDelay, connectToWifi);
+        }
         break;
     case SYSTEM_EVENT_STA_AUTHMODE_CHANGE:
         Serial.println("SYSTEM_EVENT_STA_AUTHMODE_CHANGE");
@@ -173,7 +202,6 @@ void WiFiEvent(WiFiEvent_t event) {
         break;
     case SYSTEM_EVENT_AP_START:
         Serial.println("SYSTEM_EVENT_AP_START");
-        instance->finishConnection(true);
         break;
     case SYSTEM_EVENT_AP_STOP:
         Serial.println("SYSTEM_EVENT_AP_STOP");
@@ -221,7 +249,9 @@ void onWifiConnect(const WiFiEventStationModeGotIP& event) {
 
 void onWifiDisconnect(const WiFiEventStationModeDisconnected& event) {
     Serial.println("Disconnected from Wi-Fi.");
-    wifiReconnectTimer.once(wifiReconnectDelay, connectToWifi);
+    if (checkApAvailable()) {
+        wifiReconnectTimer.once(wifiReconnectDelay, connectToWifi);
+    }
 }
 #endif
 }
@@ -362,15 +392,17 @@ bool ESPReactWifiManager::startAP(String apName)
         ESP.restart();
         return false;
     }
-    success = WiFi.softAPConfig(IPAddress(8, 8, 8, 8), IPAddress(8, 8, 8, 8),
-        IPAddress(255, 255, 255, 0));
-    if (!success) {
-        Serial.println(F("Error setting static IP for AP mode"));
-        ESP.restart();
-        return false;
-    }
+#if defined(ESP8266)
+    setupSTA();
+#endif
     success = WiFi.softAP(apName.c_str());
-    if (!success) {
+    if (success) {
+#if defined(ESP32)
+        delay(100);
+        setupSTA();
+#endif
+        instance->finishConnection(true);
+    } else {
         Serial.println(F("Error starting AP"));
         ESP.restart();
         return false;
@@ -507,6 +539,7 @@ void ESPReactWifiManager::finishConnection(bool apMode)
 
 void ESPReactWifiManager::scheduleScan(int timeout)
 {
+    Serial.println(F("scheduleScan"));
     shouldScan = millis() + timeout;
 }
 
