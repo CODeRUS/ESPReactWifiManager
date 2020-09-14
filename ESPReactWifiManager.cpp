@@ -47,9 +47,7 @@ ESPReactWifiManager *instance = nullptr;
 
 bool isConnecting = false;
 bool fallbackToAp = true;
-
-uint32_t connectingTimer = 0;
-uint32_t connectedCheckTimeout = 1000;
+String fallbackApName;
 
 uint32_t shouldScan = 0;
 
@@ -63,6 +61,9 @@ std::vector<ESPReactWifiManager::WifiResult> wifiResults;
 int wifiIndex = 0;
 
 Ticker wifiReconnectTimer;
+
+uint8_t retryCount = 0;
+uint8_t retryLimit = 3;
 
 #if defined(ESP8266)
 WiFiEventHandler wifiConnectHandler;
@@ -134,19 +135,14 @@ void setupSTA() {
     }
 }
 
-bool checkApAvailable() {
-    if (WiFi.status() == WL_NO_SSID_AVAIL && fallbackToAp) {
-#if defined(ESP32)
-        WiFi.disconnect(false, true);
-#else
-        WiFi.disconnect();
-#endif
-        Serial.println(F("SSID not available, resetting!"));
-        ESP.restart();
-        return false;
+void checkRetryCount() {
+    if (WiFi.status() == WL_NO_SSID_AVAIL) {
+        if (++retryCount <= retryLimit || !fallbackToAp) {
+            wifiReconnectTimer.once(wifiReconnectDelay, connectToWifi);
+        } else {
+            instance->startAP(fallbackApName);
+        }
     }
-
-    return true;
 }
 
 #if defined(ESP32)
@@ -171,9 +167,7 @@ void WiFiEvent(WiFiEvent_t event) {
         break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
         Serial.println("SYSTEM_EVENT_STA_DISCONNECTED");
-        if (checkApAvailable()) {
-            wifiReconnectTimer.once(wifiReconnectDelay, connectToWifi);
-        }
+        checkRetryCount();
         break;
     case SYSTEM_EVENT_STA_AUTHMODE_CHANGE:
         Serial.println("SYSTEM_EVENT_STA_AUTHMODE_CHANGE");
@@ -249,9 +243,7 @@ void onWifiConnect(const WiFiEventStationModeGotIP& event) {
 
 void onWifiDisconnect(const WiFiEventStationModeDisconnected& event) {
     Serial.println("Disconnected from Wi-Fi.");
-    if (checkApAvailable()) {
-        wifiReconnectTimer.once(wifiReconnectDelay, connectToWifi);
-    }
+    checkRetryCount();
 }
 #endif
 }
@@ -373,6 +365,7 @@ bool ESPReactWifiManager::connect(String ssid, String password, String login)
 
 bool ESPReactWifiManager::autoConnect(String apName)
 {
+    fallbackApName = apName;
     return connect(String(), String(), String()) || startAP(apName);
 }
 
