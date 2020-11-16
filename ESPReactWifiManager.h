@@ -31,6 +31,7 @@ public:
     void setupHandlers(AsyncWebServer *server);
     void onFinished(void (*func)(bool)); // arg bool "is AP mode"
     void onNotFound(void (*func)(AsyncWebServerRequest*));
+    void onCaptiveRedirect(bool (*func)(AsyncWebServerRequest*));
 
     void finishConnection(bool apMode);
     void scheduleScan(int timeout = 2000);

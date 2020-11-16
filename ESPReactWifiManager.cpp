@@ -54,6 +54,7 @@ uint32_t shouldScan = 0;
 DNSServer* dnsServer = nullptr;
 void (*finishedCallback)(bool) = nullptr;
 void (*notFoundCallback)(AsyncWebServerRequest*) = nullptr;
+bool (*captiveCallback)(AsyncWebServerRequest*) = nullptr;
 
 String wifiHostname;
 
@@ -98,6 +99,10 @@ void notFoundHandler(AsyncWebServerRequest* request)
     }
 
     bool isLocal = WiFi.localIP() == request->client()->localIP();
+
+    if (!isLocal && captiveCallback && captiveCallback(request)) {
+        return;
+    }
 
     if (!isLocal) {
         Serial.print(F("Request redirected to captive portal: "));
@@ -497,6 +502,11 @@ void ESPReactWifiManager::onFinished(void (*func)(bool))
 void ESPReactWifiManager::onNotFound(void (*func)(AsyncWebServerRequest*))
 {
     notFoundCallback = func;
+}
+
+void ESPReactWifiManager::onCaptiveRedirect(bool (*func)(AsyncWebServerRequest*))
+{
+    captiveCallback = func;
 }
 
 void ESPReactWifiManager::finishConnection(bool apMode)
