@@ -50,6 +50,9 @@ bool fallbackToAp = true;
 String fallbackApName;
 
 uint32_t shouldScan = 0;
+uint32_t shouldConnect = 0;
+
+uint32_t reconnectInterval = 60 * 1000;
 
 DNSServer* dnsServer = nullptr;
 void (*finishedCallback)(bool) = nullptr;
@@ -64,7 +67,7 @@ int wifiIndex = 0;
 Ticker wifiReconnectTimer;
 
 uint8_t retryCount = 0;
-uint8_t retryLimit = 3;
+uint8_t retryLimit = 5;
 
 #if defined(ESP8266)
 WiFiEventHandler wifiConnectHandler;
@@ -107,10 +110,13 @@ void notFoundHandler(AsyncWebServerRequest* request)
     if (!isLocal) {
         Serial.print(F("Request redirected to captive portal: "));
         Serial.println(request->url());
+        String redirect = String(F("http://"))
+                + request->client()->localIP().toString()
+                + String(F("/wifi.html"));
+        Serial.print(F("To: "));
+        Serial.println(redirect);
 
-        request->redirect(String(F("http://"))
-            + request->client()->localIP().toString()
-            + String(F("/wifi.html")));
+        request->redirect(redirect);
         return;
     }
 
@@ -141,12 +147,11 @@ void setupSTA() {
 }
 
 void checkRetryCount() {
-    if (WiFi.status() == WL_NO_SSID_AVAIL) {
-        if (++retryCount <= retryLimit || !fallbackToAp) {
-            wifiReconnectTimer.once(wifiReconnectDelay, connectToWifi);
-        } else {
-            instance->startAP(fallbackApName);
-        }
+    if (++retryCount <= retryLimit || !fallbackToAp) {
+        wifiReconnectTimer.once(wifiReconnectDelay, connectToWifi);
+    } else {
+        shouldConnect = millis() + reconnectInterval;
+        instance->startAP(fallbackApName);
     }
 }
 
@@ -280,6 +285,11 @@ void ESPReactWifiManager::loop()
 
         scan();
     }
+
+    if (WiFi.status() != WL_CONNECTED && now > shouldConnect && shouldConnect > 0) {
+        shouldConnect = 0;
+        connect();
+    }
 }
 
 void ESPReactWifiManager::disconnect()
@@ -344,6 +354,7 @@ bool ESPReactWifiManager::connect(String ssid, String password, String login)
 
     if (login.length() == 0) {
         Serial.print(F("Connecting to network: "));
+        WiFi.softAPdisconnect();
         WiFi.begin(ssid.c_str(), password.c_str());
     } else {
         Serial.print(F("Connecting to secure network: "));
@@ -368,10 +379,10 @@ bool ESPReactWifiManager::connect(String ssid, String password, String login)
     return true;
 }
 
-bool ESPReactWifiManager::autoConnect(String apName)
+bool ESPReactWifiManager::autoConnect(String apName, String ssid, String password, String login)
 {
     fallbackApName = apName;
-    return connect(String(), String(), String()) || startAP(apName);
+    return connect(ssid, password, login) || startAP(apName);
 }
 
 void ESPReactWifiManager::setFallbackToAp(bool enable)
@@ -382,9 +393,10 @@ void ESPReactWifiManager::setFallbackToAp(bool enable)
 bool ESPReactWifiManager::startAP(String apName)
 {
     Serial.println();
+    fallbackApName = apName;
     disconnect();
 
-    bool success = WiFi.mode(WIFI_AP_STA);
+    bool success = WiFi.mode(WIFI_AP);
     if (!success) {
         Serial.println(F("Error changing mode to AP"));
         ESP.restart();
@@ -393,6 +405,8 @@ bool ESPReactWifiManager::startAP(String apName)
 #if defined(ESP8266)
     setupSTA();
 #endif
+    Serial.print(F("Starting AP: "));
+    Serial.println(apName);
     success = WiFi.softAP(apName.c_str());
     if (success) {
 #if defined(ESP32)
@@ -401,7 +415,9 @@ bool ESPReactWifiManager::startAP(String apName)
 #endif
         instance->finishConnection(true);
     } else {
-        Serial.println(F("Error starting AP"));
+        WiFi.printDiag(Serial);
+        Serial.print(F("Error starting AP: "));
+        Serial.println(WiFi.status());
         ESP.restart();
         return false;
     }
