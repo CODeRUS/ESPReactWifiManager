@@ -48,6 +48,7 @@ ESPReactWifiManager *instance = nullptr;
 bool isConnecting = false;
 bool fallbackToAp = true;
 String fallbackApName;
+String storedBssid;
 
 uint32_t shouldScan = 0;
 uint32_t shouldConnect = 0;
@@ -92,6 +93,14 @@ bool ssidLess(const ESPReactWifiManager::WifiResult& a,
               const ESPReactWifiManager::WifiResult& b)
 {
     return a.ssid == b.ssid ? signalLess(a, b) : a.ssid < b.ssid;
+}
+
+int str2mac(const char* mac, uint8_t* values){
+   if (6 == sscanf(mac, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &values[0], &values[1], &values[2], &values[3], &values[4], &values[5])) {
+       return 1;
+   } else {
+       return 0;
+   }
 }
 
 void notFoundHandler(AsyncWebServerRequest* request)
@@ -140,7 +149,7 @@ void connectToWifi()
         return;
     }
 
-    instance->connect(String(), String(), String());
+    instance->connect(String(), String(), String(), storedBssid);
 }
 
 void setupAP() {
@@ -319,7 +328,7 @@ void ESPReactWifiManager::disconnect()
 #endif
 }
 
-bool ESPReactWifiManager::connect(String ssid, String password, String login)
+bool ESPReactWifiManager::connect(String ssid, String password, String login, String bssid)
 {
     Serial.println();
 
@@ -371,19 +380,22 @@ bool ESPReactWifiManager::connect(String ssid, String password, String login)
         }
     }
 
+    Serial.print("BSSID: ");
+    Serial.println(bssid);
+
+    String connectPassword = password;
     if (login.length() == 0) {
         Serial.print(F("Connecting to network: "));
         Serial.println(ssid);
         Serial.flush();
-        WiFi.begin(ssid.c_str(), password.c_str());
     } else {
         Serial.print(F("Connecting to secure network: "));
         Serial.println(ssid);
         Serial.flush();
-        String save_password = F("x:");
-        save_password += login;
-        save_password += F(":");
-        save_password += password;
+        connectPassword = F("x:");
+        connectPassword += login;
+        connectPassword += F(":");
+        connectPassword += password;
 #if defined(ESP32)
         esp_wpa2_config_t config = WPA2_CONFIG_INIT_DEFAULT();
         esp_wifi_sta_wpa2_ent_enable(&config);
@@ -393,7 +405,14 @@ bool ESPReactWifiManager::connect(String ssid, String password, String login)
         esp_wifi_sta_wpa2_ent_set_identity((wifi_cred_t*)login.c_str(), login.length());
         esp_wifi_sta_wpa2_ent_set_username((wifi_cred_t*)login.c_str(), login.length());
         esp_wifi_sta_wpa2_ent_set_password((wifi_cred_t*)password.c_str(), password.length());
-        WiFi.begin(ssid.c_str(), save_password.c_str());
+    }
+    uint8_t mac[6] = { 0 };
+    if (bssid.length() > 0 && str2mac(bssid.c_str(), mac)) {
+        Serial.print(F("Pin to BSSID: "));
+        Serial.println(bssid);
+        WiFi.begin(ssid.c_str(), connectPassword.c_str(), 0, mac);
+    } else {
+        WiFi.begin(ssid.c_str(), connectPassword.c_str());
     }
 
     Serial.println(F("Finished connecting"));
@@ -401,10 +420,11 @@ bool ESPReactWifiManager::connect(String ssid, String password, String login)
     return true;
 }
 
-bool ESPReactWifiManager::autoConnect(String apName, String ssid, String password, String login)
+bool ESPReactWifiManager::autoConnect(String apName, String ssid, String password, String login, String bssid)
 {
     fallbackApName = apName;
-    return connect(ssid, password, login) || startAP(apName);
+    storedBssid = bssid;
+    return connect(ssid, password, login, bssid) || startAP(apName);
 }
 
 void ESPReactWifiManager::setFallbackToAp(bool enable)
@@ -555,6 +575,10 @@ void ESPReactWifiManager::finishConnection(bool apMode)
         Serial.println(WiFi.softAPIP());
     } else {
         Serial.println("Connected to Wi-Fi.");
+        Serial.print(F("AP ssid: "));
+        Serial.println(WiFi.SSID());
+        Serial.print(F("AP bssid: "));
+        Serial.println(WiFi.BSSIDstr());
         Serial.print(F("STA IP address: "));
         Serial.println(WiFi.localIP());
     }
@@ -633,6 +657,15 @@ bool ESPReactWifiManager::scan()
                 } else {
                     result.quality = 2 * (result.rssi + 100);
                 }
+
+                Serial.printf("index: %d\n", i);
+                Serial.printf("ssid: %s\n", result.ssid.c_str());
+                Serial.printf("bssid: %02X:%02X:%02X:%02X:%02X:%02X\n", result.bssid[0]
+                                                          , result.bssid[1]
+                                                          , result.bssid[2]
+                                                          , result.bssid[3]
+                                                          , result.bssid[4]
+                                                          , result.bssid[5]);
 
                 wifiResults.push_back(result);
             }

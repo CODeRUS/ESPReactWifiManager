@@ -23,8 +23,8 @@ public:
     void loop();
 
     void disconnect();
-    bool connect(String ssid = String(), String password = String(), String login = String());
-    bool autoConnect(String apName, String ssid = String(), String password = String(), String login = String());
+    bool connect(String ssid = String(), String password = String(), String login = String(), String bssid = String());
+    bool autoConnect(String apName, String ssid = String(), String password = String(), String login = String(), String bssid = String());
     bool startAP(String apName);
     void setFallbackToAp(bool enable);
 
