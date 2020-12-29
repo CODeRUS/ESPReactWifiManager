@@ -47,8 +47,14 @@ ESPReactWifiManager *instance = nullptr;
 
 bool isConnecting = false;
 bool fallbackToAp = true;
-String fallbackApName;
-String storedBssid;
+
+String connectSsid;
+String connectPassword;
+String connectLogin;
+String connectBssid;
+
+String connectApName;
+String connectApPassword;
 
 uint32_t shouldScan = 0;
 uint32_t shouldConnect = 0;
@@ -149,7 +155,7 @@ void connectToWifi()
         return;
     }
 
-    instance->connect(String(), String(), String(), storedBssid);
+    instance->connect();
 }
 
 void setupAP() {
@@ -173,7 +179,7 @@ void checkRetryCount() {
         wifiReconnectTimer.once(wifiReconnectDelay, connectToWifi);
     } else {
         shouldConnect = millis() + reconnectInterval;
-        instance->startAP(fallbackApName);
+        instance->startAP();
     }
 }
 
@@ -281,11 +287,9 @@ void onWifiDisconnect(const WiFiEventStationModeDisconnected& event) {
 #endif
 }
 
-ESPReactWifiManager::ESPReactWifiManager(const String &hostname)
+ESPReactWifiManager::ESPReactWifiManager()
 {
     instance = this;
-
-    wifiHostname = hostname;
 
 #if defined(ESP8266)
     wifiConnectHandler = WiFi.onStationModeGotIP(onWifiConnect);
@@ -328,7 +332,21 @@ void ESPReactWifiManager::disconnect()
 #endif
 }
 
-bool ESPReactWifiManager::connect(String ssid, String password, String login, String bssid)
+void ESPReactWifiManager::setApOptions(String apName, String apPassword)
+{
+    connectApName = apName;
+    connectApPassword = apPassword;
+}
+
+void ESPReactWifiManager::setStaOptions(String ssid, String password, String login, String bssid)
+{
+    connectSsid = ssid;
+    connectPassword = password;
+    connectLogin = login;
+    connectBssid = bssid;
+}
+
+bool ESPReactWifiManager::connect()
 {
     Serial.println();
 
@@ -345,7 +363,7 @@ bool ESPReactWifiManager::connect(String ssid, String password, String login, St
 #endif
     }
 
-    if (ssid.length() == 0) {
+    if (connectSsid.length() == 0) {
         sta_config_t sta_conf;
 #if defined(ESP32)
         wifi_config_t current_conf;
@@ -354,9 +372,9 @@ bool ESPReactWifiManager::connect(String ssid, String password, String login, St
 #else
         wifi_station_get_config_default(&sta_conf);
 #endif
-        ssid = String(reinterpret_cast<const char*>(sta_conf.ssid));
+        connectSsid = String(reinterpret_cast<const char*>(sta_conf.ssid));
 
-        if (ssid.length() == 0) {
+        if (connectSsid.length() == 0) {
             isConnecting = false;
             return false;
         }
@@ -365,13 +383,13 @@ bool ESPReactWifiManager::connect(String ssid, String password, String login, St
 
         if (savedPassword.startsWith(F("x:"))) {
             int passwordIndex = savedPassword.indexOf(F(":"), 2);
-            password = savedPassword.substring(passwordIndex + 1);
-            login = savedPassword.substring(2, passwordIndex);
+            connectPassword = savedPassword.substring(passwordIndex + 1);
+            connectLogin = savedPassword.substring(2, passwordIndex);
         } else {
-            password = savedPassword;
+            connectPassword = savedPassword;
         }
 
-        if (ssid.length() > 0) {
+        if (connectSsid.length() > 0) {
             Serial.println(F("Connecting to last saved network"));
         } else {
             Serial.println(F("No last saved network"));
@@ -380,39 +398,36 @@ bool ESPReactWifiManager::connect(String ssid, String password, String login, St
         }
     }
 
-    Serial.print("BSSID: ");
-    Serial.println(bssid);
-
-    String connectPassword = password;
-    if (login.length() == 0) {
+    String tempPassword = connectPassword;
+    if (connectLogin.length() == 0) {
         Serial.print(F("Connecting to network: "));
-        Serial.println(ssid);
+        Serial.println(connectSsid);
         Serial.flush();
     } else {
         Serial.print(F("Connecting to secure network: "));
-        Serial.println(ssid);
+        Serial.println(connectSsid);
         Serial.flush();
-        connectPassword = F("x:");
-        connectPassword += login;
-        connectPassword += F(":");
-        connectPassword += password;
+        tempPassword = F("x:");
+        tempPassword += connectLogin;
+        tempPassword += F(":");
+        tempPassword += connectPassword;
 #if defined(ESP32)
         esp_wpa2_config_t config = WPA2_CONFIG_INIT_DEFAULT();
         esp_wifi_sta_wpa2_ent_enable(&config);
 #else
         wifi_station_set_wpa2_enterprise_auth(1);
 #endif
-        esp_wifi_sta_wpa2_ent_set_identity((wifi_cred_t*)login.c_str(), login.length());
-        esp_wifi_sta_wpa2_ent_set_username((wifi_cred_t*)login.c_str(), login.length());
-        esp_wifi_sta_wpa2_ent_set_password((wifi_cred_t*)password.c_str(), password.length());
+        esp_wifi_sta_wpa2_ent_set_identity((wifi_cred_t*)connectLogin.c_str(), connectLogin.length());
+        esp_wifi_sta_wpa2_ent_set_username((wifi_cred_t*)connectLogin.c_str(), connectLogin.length());
+        esp_wifi_sta_wpa2_ent_set_password((wifi_cred_t*)connectPassword.c_str(), connectPassword.length());
     }
     uint8_t mac[6] = { 0 };
-    if (bssid.length() > 0 && str2mac(bssid.c_str(), mac)) {
+    if (connectBssid.length() > 0 && str2mac(connectBssid.c_str(), mac)) {
         Serial.print(F("Pin to BSSID: "));
-        Serial.println(bssid);
-        WiFi.begin(ssid.c_str(), connectPassword.c_str(), 0, mac);
+        Serial.println(connectBssid);
+        WiFi.begin(connectSsid.c_str(), tempPassword.c_str(), 0, mac);
     } else {
-        WiFi.begin(ssid.c_str(), connectPassword.c_str());
+        WiFi.begin(connectSsid.c_str(), tempPassword.c_str());
     }
 
     Serial.println(F("Finished connecting"));
@@ -420,11 +435,9 @@ bool ESPReactWifiManager::connect(String ssid, String password, String login, St
     return true;
 }
 
-bool ESPReactWifiManager::autoConnect(String apName, String ssid, String password, String login, String bssid)
+bool ESPReactWifiManager::autoConnect()
 {
-    fallbackApName = apName;
-    storedBssid = bssid;
-    return connect(ssid, password, login, bssid) || startAP(apName);
+    return connect() || startAP();
 }
 
 void ESPReactWifiManager::setFallbackToAp(bool enable)
@@ -432,10 +445,9 @@ void ESPReactWifiManager::setFallbackToAp(bool enable)
     fallbackToAp = enable;
 }
 
-bool ESPReactWifiManager::startAP(String apName)
+bool ESPReactWifiManager::startAP()
 {
     Serial.println();
-    fallbackApName = apName;
     disconnect();
 
     bool success = WiFi.mode(WIFI_AP);
@@ -448,8 +460,8 @@ bool ESPReactWifiManager::startAP(String apName)
     setupAP();
 #endif
     Serial.print(F("Starting AP: "));
-    Serial.println(apName);
-    success = WiFi.softAP(apName.c_str());
+    Serial.println(connectApName);
+    success = WiFi.softAP(connectApName.c_str(), connectApPassword.c_str());
     if (success) {
 #if defined(ESP32)
         delay(500);
@@ -500,7 +512,8 @@ void ESPReactWifiManager::setupHandlers(AsyncWebServer *server)
             message += ssid;
             message += F(" after module reboot");
 
-            connect(ssid, password, login);
+            setStaOptions(ssid, password, login);
+            connect();
         } else {
             message = F("Wrong request. No ssid");
         }
@@ -682,6 +695,11 @@ bool ESPReactWifiManager::scan()
 int ESPReactWifiManager::size()
 {
     return wifiResults.size();
+}
+
+void ESPReactWifiManager::setHostname(String hostname)
+{
+    wifiHostname = hostname;
 }
 
 std::vector<ESPReactWifiManager::WifiResult> ESPReactWifiManager::results()

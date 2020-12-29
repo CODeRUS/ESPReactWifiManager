@@ -7,7 +7,7 @@ class AsyncWebServerRequest;
 class ESPReactWifiManager
 {
 public:
-    ESPReactWifiManager(const String &hostname = String());
+    ESPReactWifiManager();
 
     struct WifiResult {
         String ssid;
@@ -23,9 +23,12 @@ public:
     void loop();
 
     void disconnect();
-    bool connect(String ssid = String(), String password = String(), String login = String(), String bssid = String());
-    bool autoConnect(String apName, String ssid = String(), String password = String(), String login = String(), String bssid = String());
-    bool startAP(String apName);
+    void setHostname(String hostname);
+    void setApOptions(String apName, String apPassword = String());
+    void setStaOptions(String ssid, String password = String(), String login = String(), String bssid = String());
+    bool connect();
+    bool autoConnect();
+    bool startAP();
     void setFallbackToAp(bool enable);
 
     void setupHandlers(AsyncWebServer *server);
