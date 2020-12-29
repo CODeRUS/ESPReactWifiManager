@@ -321,14 +321,14 @@ void ESPReactWifiManager::loop()
 
 void ESPReactWifiManager::disconnect()
 {
+    WiFi.softAPdisconnect(true);
 #if defined(ESP8266)
     //trying to fix connection in progress hanging
     ETS_UART_INTR_DISABLE();
     wifi_station_disconnect();
     ETS_UART_INTR_ENABLE();
 #else
-//    WiFi.softAPdisconnect(true);
-//    WiFi.disconnect(false);
+    WiFi.disconnect(false);
 #endif
 }
 
@@ -353,7 +353,7 @@ bool ESPReactWifiManager::connect()
     isConnecting = true;
     disconnect();
     delay(1000);
-    WiFi.mode(WIFI_AP_STA);
+    WiFi.mode(WIFI_STA);
     delay(1000);
     if (!wifiHostname.isEmpty()) {
 #if defined(ESP8266)
